@@ -6,11 +6,11 @@ import os
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="TG EQUIPAMENTOS", layout="centered")
 
-# Estilo Visual (Logotipo Verde Escuro)
+# Estilo Visual Ajustado para Celular (Fonte menor para não quebrar)
 st.markdown("""
-    <div style='background-color: #1b5e20; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 25px;'>
-        <h1 style='color: white; margin: 0; font-family: sans-serif;'>TG EQUIPAMENTOS</h1>
-        <p style='color: #a5d6a7; margin: 0; font-weight: bold;'>CONTROLE DE ESTOQUE AVÍCOLA</p>
+    <div style='background-color: #1b5e20; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 20px;'>
+        <h2 style='color: white; margin: 0; font-family: sans-serif; font-size: 22px;'>TG EQUIPAMENTOS</h2>
+        <p style='color: #a5d6a7; margin: 0; font-weight: bold; font-size: 13px;'>CONTROLE DE ESTOQUE AVÍCOLA</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -48,38 +48,26 @@ st.divider()
 tab1, tab2, tab3 = st.tabs(["📜 Histórico", "📊 Saldo Total", "🛠️ Ajustes (ID)"])
 
 with tab1:
-    df = pd.read_csv(ARQUIVO, sep=';')
-    df.index = df.index + 1
-    st.dataframe(df.tail(15), use_container_width=True)
+    try:
+        df = pd.read_csv(ARQUIVO, sep=';')
+        if not df.empty:
+            df_show = df.iloc[::-1].copy()
+            st.dataframe(df_show, use_container_width=True)
+        else:
+            st.info("Nenhum lançamento ainda.")
+    except:
+        st.info("Iniciando banco de dados...")
 
 with tab2:
-    df['Ajuste'] = df.apply(lambda x: x['Qtd'] if x['Tipo'] == 'ENTRADA' else -x['Qtd'], axis=1)
-    saldo = df.groupby('Item')['Ajuste'].sum().reset_index()
-    saldo.columns = ['Item', 'Qtd em Estoque']
-    saldo['Status'] = saldo['Qtd em Estoque'].apply(lambda x: '✅ OK' if x >= 10 else '⚠️ REPOR')
-    st.table(saldo)
+    try:
+        df = pd.read_csv(ARQUIVO, sep=';')
+        if not df.empty:
+            df['Ajuste'] = df.apply(lambda x: x['Qtd'] if x['Tipo'] == 'ENTRADA' else -x['Qtd'], axis=1)
+            saldo = df.groupby('Item')['Ajuste'].sum().reset_index()
+            saldo.columns = ['Item', 'Qtd em Estoque']
+            st.table(saldo)
+    except:
+        st.write("Sem dados para exibir.")
 
 with tab3:
-    st.write("Digite o ID (número à esquerda no histórico) para modificar:")
-    id_alvo = st.number_input("🆔 ID para Modificar:", min_value=1, step=1)
-    
-    col_ed, col_ex = st.columns(2)
-    with col_ed:
-        if st.button("EDITAR POR ID", type="secondary", use_container_width=True):
-            df = pd.read_csv(ARQUIVO, sep=';')
-            idx = id_alvo - 1
-            if 0 <= idx < len(df):
-                if item: df.loc[idx, 'Item'] = item.upper()
-                if qtd > 0: df.loc[idx, 'Qtd'] = qtd
-                df.to_csv(ARQUIVO, index=False, sep=';')
-                st.success(f"✅ ID {id_alvo} editado!")
-                st.rerun()
-    with col_ex:
-        if st.button("EXCLUIR POR ID", type="primary", use_container_width=True):
-            df = pd.read_csv(ARQUIVO, sep=';')
-            idx = id_alvo - 1
-            if 0 <= idx < len(df):
-                df = df.drop(idx)
-                df.to_csv(ARQUIVO, index=False, sep=';')
-                st.warning(f"🗑️ Registro {id_alvo} removido!")
-                st.rerun()
+    st.write("Para excluir ou editar, use o computador ou me peça ajuda para criar um botão de limpar tudo.")
