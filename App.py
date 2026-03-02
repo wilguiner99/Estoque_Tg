@@ -3,89 +3,84 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="TG EQUIPAMENTOS", layout="centered")
+# CONFIGURAÇÃO GERAL
+st.set_page_config(page_title="TG ESTOQUE", layout="wide")
 
-# Estilo Visual (Logotipo Verde)
+# Estilo para botões e visual
 st.markdown("""
-    <div style='background-color: #2e602f; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 20px;'>
-        <h2 style='color: white; margin: 0; font-size: 24px;'>TG EQUIPAMENTOS</h2>
-        <p style='color: #a5d6a7; margin: 0; font-size: 14px;'>CONTROLE DE ESTOQUE AVÍCOLA</p>
-    </div>
+    <style>
+    .main { background-color: #f5f5f5; }
+    div.stButton > button { width: 100%; height: 60px; font-weight: bold; font-size: 20px; border-radius: 10px; }
+    .stDataFrame { background-color: white; border-radius: 10px; }
+    </style>
 """, unsafe_allow_html=True)
 
-ARQUIVO = 'estoque_tg.csv'
+# LOGIN SIMPLES
+if 'auth' not in st.session_state:
+    st.session_state['auth'] = False
 
-# Inicializar arquivo
+if not st.session_state['auth']:
+    st.title("🔐 ACESSO TG")
+    user = st.text_input("Usuário")
+    pw = st.text_input("Senha", type="password")
+    if st.button("ENTRAR"):
+        if user == "Admin" and pw == "1234":
+            st.session_state['auth'] = True
+            st.rerun()
+        else: st.error("Incorreto")
+    st.stop()
+
+# BANCO DE DADOS
+ARQUIVO = 'estoque_tg.csv'
 if not os.path.exists(ARQUIVO):
     pd.DataFrame(columns=['Data', 'Item', 'Qtd', 'Tipo', 'Resp']).to_csv(ARQUIVO, index=False, sep=';')
 
-# --- ENTRADA DE DADOS ---
+# CABEÇALHO GIGANTE
+st.markdown("<h1 style='text-align: center; color: #1b5e20;'>🚜 TG EQUIPAMENTOS</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>CONTROLE DE ESTOQUE RÁPIDO</p>", unsafe_allow_html=True)
+
+# ÁREA DE DIGITAÇÃO
 with st.container():
-    item = st.text_input("📦 Item:", placeholder="Ex: Parafuso 1/4")
-    qtd = st.number_input("🔢 Qtd:", min_value=0, step=1)
-    resp = st.text_input("👤 Resp:", placeholder="Seu nome")
+    item = st.text_input("📦 O QUE ESTÁ MOVIMENTANDO?", placeholder="Ex: Parafuso, Bucha...")
+    col_q, col_r = st.columns(2)
+    qtd = col_q.number_input("QUANTIDADE:", min_value=1, step=1)
+    resp = col_r.text_input("QUEM É VOCÊ?", placeholder="Seu nome")
 
-    # Botões Lado a Lado (Estilo o seu print)
-    col1, col2 = st.columns(2)
+    st.write("---")
+    c1, c2 = st.columns(2)
     
-    with col1:
-        btn_entrada = st.button("ENTRADA", type="primary", use_container_width=True)
-    with col2:
-        btn_saida = st.button("SAÍDA", type="secondary", use_container_width=True)
-
-    # Lógica de Salvar
-    if btn_entrada or btn_saida:
-        tipo = "ENTRADA" if btn_entrada else "SAÍDA"
-        if item and qtd > 0:
-            data = datetime.now().strftime('%d/%m/%Y %H:%M')
-            novo = pd.DataFrame([[data, item.upper(), qtd, tipo, resp.upper()]], columns=['Data', 'Item', 'Qtd', 'Tipo', 'Resp'])
+    # Botão de ENTRADA (Verde)
+    if c1.button("📥 ENTRADA", type="primary"):
+        if item and resp:
+            data = datetime.now().strftime('%d/%m %H:%M')
+            novo = pd.DataFrame([[data, item.upper(), qtd, "ENTRADA", resp.upper()]], columns=['Data', 'Item', 'Qtd', 'Tipo', 'Resp'])
             novo.to_csv(ARQUIVO, mode='a', header=False, index=False, sep=';')
-            st.success(f"✅ {tipo} de {item.upper()} salva!")
+            st.success("REGISTRADO!")
             st.rerun()
 
-st.divider()
+    # Botão de SAÍDA (Vermelho)
+    if c2.button("📤 SAÍDA"):
+        if item and resp:
+            data = datetime.now().strftime('%d/%m %H:%M')
+            novo = pd.DataFrame([[data, item.upper(), qtd, "SAÍDA", resp.upper()]], columns=['Data', 'Item', 'Qtd', 'Tipo', 'Resp'])
+            novo.to_csv(ARQUIVO, mode='a', header=False, index=False, sep=';')
+            st.warning("SAÍDA REGISTRADA!")
+            st.rerun()
 
-# --- BOTÕES DE CONSULTA ---
-col_hist, col_saldo = st.columns(2)
-show_hist = col_hist.button("HISTÓRICO", use_container_width=True)
-show_saldo = col_saldo.button("SALDO TOTAL", use_container_width=True)
-
-df = pd.read_csv(ARQUIVO, sep=';')
-
-if show_hist:
-    st.subheader("📜 Últimos Lançamentos")
-    st.dataframe(df.iloc[::-1], use_container_width=True)
-
-if show_saldo:
-    st.subheader("📊 Estoque Atual")
-    df['Ajuste'] = df.apply(lambda x: x['Qtd'] if x['Tipo'] == 'ENTRADA' else -x['Qtd'], axis=1)
-    saldo = df.groupby('Item')['Ajuste'].sum().reset_index()
-    st.table(saldo)
-
-st.divider()
-
-# --- ÁREA DE EDIÇÃO (ESTILO O SEU PRINT) ---
-st.markdown("### 🛠️ AJUSTES (POR ID)")
-id_alvo = st.number_input("🆔 ID (Linha):", min_value=1, step=1)
-
-col_edit, col_excluir = st.columns(2)
-
-if col_edit.button("EDITAR", use_container_width=True):
-    idx = id_alvo - 1
-    if 0 <= idx < len(df):
-        if item: df.loc[idx, 'Item'] = item.upper()
-        if qtd > 0: df.loc[idx, 'Qtd'] = qtd
-        df.to_csv(ARQUIVO, index=False, sep=';')
-        st.success("Editado com sucesso!")
-        st.rerun()
+st.write("### 📋 PLANILHA DE MOVIMENTAÇÃO")
+# MOSTRAR A PLANILHA SEMPRE
+try:
+    df = pd.read_csv(ARQUIVO, sep=';')
+    if not df.empty:
+        # Mostra os últimos 20 registros primeiro
+        st.dataframe(df.iloc[::-1].head(20), use_container_width=True, hide_index=True)
+        
+        # BOTÃO PARA LIMPAR TUDO (CUIDADO)
+        if st.expander("🗑️ OPÇÕES AVANÇADAS"):
+            if st.button("LIMPAR TODA A PLANILHA"):
+                pd.DataFrame(columns=['Data', 'Item', 'Qtd', 'Tipo', 'Resp']).to_csv(ARQUIVO, index=False, sep=';')
+                st.rerun()
     else:
-        st.error("❌ ID não encontrado!")
-
-if col_excluir.button("EXCLUIR", type="primary", use_container_width=True):
-    idx = id_alvo - 1
-    if 0 <= idx < len(df):
-        df = df.drop(idx)
-        df.to_csv(ARQUIVO, index=False, sep=';')
-        st.warning("Registro excluído!")
-        st.rerun()
+        st.info("A planilha está vazia. Faça o primeiro lançamento acima!")
+except:
+    st.error("Erro ao ler a planilha. Tente limpar os dados.")
