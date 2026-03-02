@@ -6,68 +6,86 @@ import os
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="TG EQUIPAMENTOS", layout="centered")
 
-# Estilo Visual Ajustado para Celular (Fonte menor para não quebrar)
+# Estilo Visual (Logotipo Verde)
 st.markdown("""
-    <div style='background-color: #1b5e20; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 20px;'>
-        <h2 style='color: white; margin: 0; font-family: sans-serif; font-size: 22px;'>TG EQUIPAMENTOS</h2>
-        <p style='color: #a5d6a7; margin: 0; font-weight: bold; font-size: 13px;'>CONTROLE DE ESTOQUE AVÍCOLA</p>
+    <div style='background-color: #2e602f; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 20px;'>
+        <h2 style='color: white; margin: 0; font-size: 24px;'>TG EQUIPAMENTOS</h2>
+        <p style='color: #a5d6a7; margin: 0; font-size: 14px;'>CONTROLE DE ESTOQUE AVÍCOLA</p>
     </div>
 """, unsafe_allow_html=True)
 
 ARQUIVO = 'estoque_tg.csv'
 
-# Inicializar arquivo se não existir
+# Inicializar arquivo
 if not os.path.exists(ARQUIVO):
-    df_init = pd.DataFrame(columns=['Data', 'Item', 'Qtd', 'Tipo', 'Resp'])
-    df_init.to_csv(ARQUIVO, index=False, sep=';')
+    pd.DataFrame(columns=['Data', 'Item', 'Qtd', 'Tipo', 'Resp']).to_csv(ARQUIVO, index=False, sep=';')
 
 # --- ENTRADA DE DADOS ---
-with st.expander("📝 NOVO LANÇAMENTO", expanded=True):
+with st.container():
+    item = st.text_input("📦 Item:", placeholder="Ex: Parafuso 1/4")
+    qtd = st.number_input("🔢 Qtd:", min_value=0, step=1)
+    resp = st.text_input("👤 Resp:", placeholder="Seu nome")
+
+    # Botões Lado a Lado (Estilo o seu print)
     col1, col2 = st.columns(2)
-    with col1:
-        item = st.text_input("📦 Item:", placeholder="Ex: Parafuso 1/4")
-        qtd = st.number_input("🔢 Qtd:", min_value=0, step=1)
-    with col2:
-        resp = st.text_input("👤 Resp:", placeholder="Seu nome")
-        tipo = st.selectbox("Operação:", ["ENTRADA", "SAÍDA"])
     
-    if st.button("SALVAR REGISTRO", use_container_width=True):
+    with col1:
+        btn_entrada = st.button("ENTRADA", type="primary", use_container_width=True)
+    with col2:
+        btn_saida = st.button("SAÍDA", type="secondary", use_container_width=True)
+
+    # Lógica de Salvar
+    if btn_entrada or btn_saida:
+        tipo = "ENTRADA" if btn_entrada else "SAÍDA"
         if item and qtd > 0:
             data = datetime.now().strftime('%d/%m/%Y %H:%M')
-            novo_dado = pd.DataFrame([[data, item.upper(), qtd, tipo, resp.upper()]], 
-                                     columns=['Data', 'Item', 'Qtd', 'Tipo', 'Resp'])
-            novo_dado.to_csv(ARQUIVO, mode='a', header=False, index=False, sep=';')
-            st.success(f"✅ {tipo} de {item.upper()} registrada!")
+            novo = pd.DataFrame([[data, item.upper(), qtd, tipo, resp.upper()]], columns=['Data', 'Item', 'Qtd', 'Tipo', 'Resp'])
+            novo.to_csv(ARQUIVO, mode='a', header=False, index=False, sep=';')
+            st.success(f"✅ {tipo} de {item.upper()} salva!")
             st.rerun()
-        else:
-            st.error("⚠️ Preencha o item e a quantidade!")
 
 st.divider()
 
-# --- ABAS DE CONSULTA E AJUSTES ---
-tab1, tab2, tab3 = st.tabs(["📜 Histórico", "📊 Saldo Total", "🛠️ Ajustes (ID)"])
+# --- BOTÕES DE CONSULTA ---
+col_hist, col_saldo = st.columns(2)
+show_hist = col_hist.button("HISTÓRICO", use_container_width=True)
+show_saldo = col_saldo.button("SALDO TOTAL", use_container_width=True)
 
-with tab1:
-    try:
-        df = pd.read_csv(ARQUIVO, sep=';')
-        if not df.empty:
-            df_show = df.iloc[::-1].copy()
-            st.dataframe(df_show, use_container_width=True)
-        else:
-            st.info("Nenhum lançamento ainda.")
-    except:
-        st.info("Iniciando banco de dados...")
+df = pd.read_csv(ARQUIVO, sep=';')
 
-with tab2:
-    try:
-        df = pd.read_csv(ARQUIVO, sep=';')
-        if not df.empty:
-            df['Ajuste'] = df.apply(lambda x: x['Qtd'] if x['Tipo'] == 'ENTRADA' else -x['Qtd'], axis=1)
-            saldo = df.groupby('Item')['Ajuste'].sum().reset_index()
-            saldo.columns = ['Item', 'Qtd em Estoque']
-            st.table(saldo)
-    except:
-        st.write("Sem dados para exibir.")
+if show_hist:
+    st.subheader("📜 Últimos Lançamentos")
+    st.dataframe(df.iloc[::-1], use_container_width=True)
 
-with tab3:
-    st.write("Para excluir ou editar, use o computador ou me peça ajuda para criar um botão de limpar tudo.")
+if show_saldo:
+    st.subheader("📊 Estoque Atual")
+    df['Ajuste'] = df.apply(lambda x: x['Qtd'] if x['Tipo'] == 'ENTRADA' else -x['Qtd'], axis=1)
+    saldo = df.groupby('Item')['Ajuste'].sum().reset_index()
+    st.table(saldo)
+
+st.divider()
+
+# --- ÁREA DE EDIÇÃO (ESTILO O SEU PRINT) ---
+st.markdown("### 🛠️ AJUSTES (POR ID)")
+id_alvo = st.number_input("🆔 ID (Linha):", min_value=1, step=1)
+
+col_edit, col_excluir = st.columns(2)
+
+if col_edit.button("EDITAR", use_container_width=True):
+    idx = id_alvo - 1
+    if 0 <= idx < len(df):
+        if item: df.loc[idx, 'Item'] = item.upper()
+        if qtd > 0: df.loc[idx, 'Qtd'] = qtd
+        df.to_csv(ARQUIVO, index=False, sep=';')
+        st.success("Editado com sucesso!")
+        st.rerun()
+    else:
+        st.error("❌ ID não encontrado!")
+
+if col_excluir.button("EXCLUIR", type="primary", use_container_width=True):
+    idx = id_alvo - 1
+    if 0 <= idx < len(df):
+        df = df.drop(idx)
+        df.to_csv(ARQUIVO, index=False, sep=';')
+        st.warning("Registro excluído!")
+        st.rerun()
